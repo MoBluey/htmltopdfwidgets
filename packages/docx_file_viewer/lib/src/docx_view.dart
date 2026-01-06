@@ -7,8 +7,10 @@ import 'package:flutter/material.dart';
 import 'docx_view_config.dart';
 import 'font_loader/embedded_font_loader.dart';
 import 'search/docx_search_controller.dart';
+import 'services/docx_print_service.dart';
 import 'theme/docx_view_theme.dart';
 import 'widget_generator/docx_widget_generator.dart';
+import 'widgets/docx_toolbar.dart';
 
 /// A Flutter widget for viewing DOCX files.
 ///
@@ -46,6 +48,18 @@ class DocxView extends StatefulWidget {
   /// Callback when document loading fails.
   final void Function(Object error)? onError;
 
+  /// Callback when print is triggered. If null, uses default print behaviour.
+  final VoidCallback? onPrint;
+
+  /// Callback when download/save is triggered. If null, uses default save dialog.
+  final VoidCallback? onDownload;
+
+  /// Callback when share is triggered.
+  final VoidCallback? onShare;
+
+  /// Callback when zoom level changes.
+  final ValueChanged<double>? onZoomChanged;
+
   const DocxView({
     super.key,
     this.file,
@@ -55,6 +69,10 @@ class DocxView extends StatefulWidget {
     this.searchController,
     this.onLoaded,
     this.onError,
+    this.onPrint,
+    this.onDownload,
+    this.onShare,
+    this.onZoomChanged,
   }) : assert(
           file != null || bytes != null || path != null,
           'Must provide either file, bytes, or path',
@@ -117,6 +135,8 @@ class _DocxViewState extends State<DocxView> {
 
   late DocxSearchController _searchController;
   late DocxWidgetGenerator _generator;
+  double _currentZoom = 1.0;
+  Uint8List? _documentBytes;
 
   @override
   void initState() {
@@ -163,6 +183,8 @@ class _DocxViewState extends State<DocxView> {
       } else {
         throw ArgumentError('No document source provided');
       }
+
+      _documentBytes = bytes; // Store for print/download
 
       // Load document using docx_creator
       final doc = await DocxReader.loadFromBytes(bytes);
@@ -349,11 +371,95 @@ class _DocxViewState extends State<DocxView> {
       content = InteractiveViewer(
         minScale: widget.config.minScale,
         maxScale: widget.config.maxScale,
+        onInteractionUpdate: (details) {
+          if (details.scale != _currentZoom) {
+            setState(() {
+              _currentZoom = details.scale;
+            });
+            widget.onZoomChanged?.call(_currentZoom);
+          }
+        },
         child: content,
       );
     }
 
+    // Wrap with toolbar if enabled
+    if (widget.config.showToolbar) {
+      content = _buildWithToolbar(content);
+    }
+
     return content;
+  }
+
+  Widget _buildWithToolbar(Widget content) {
+    final toolbar = DocxToolbar(
+      currentZoom: _currentZoom,
+      enableZoom: widget.config.enableZoom,
+      enablePrint: widget.config.enablePrint,
+      enableDownload: widget.config.enableDownload,
+      enableShare: widget.config.enableShare,
+      onZoomIn: () => _setZoom(_currentZoom + 0.25),
+      onZoomOut: () => _setZoom(_currentZoom - 0.25),
+      onZoomReset: () => _setZoom(1.0),
+      onPrint: _handlePrint,
+      onDownload: _handleDownload,
+      onShare: _handleShare,
+    );
+
+    switch (widget.config.toolbarPosition) {
+      case ToolbarPosition.top:
+        return Column(children: [toolbar, Expanded(child: content)]);
+      case ToolbarPosition.bottom:
+        return Column(children: [Expanded(child: content), toolbar]);
+      case ToolbarPosition.floating:
+        return Stack(
+          children: [
+            content,
+            Positioned(top: 8, right: 8, child: toolbar),
+          ],
+        );
+    }
+  }
+
+  void _setZoom(double zoom) {
+    setState(() {
+      _currentZoom = zoom.clamp(
+        widget.config.minScale,
+        widget.config.maxScale,
+      );
+    });
+    widget.onZoomChanged?.call(_currentZoom);
+  }
+
+  Future<void> _handlePrint() async {
+    if (widget.onPrint != null) {
+      widget.onPrint!();
+      return;
+    }
+    if (_documentBytes == null) return;
+
+    final printService = DocxPrintService();
+    await printService.printFromBytes(_documentBytes!);
+  }
+
+  Future<void> _handleDownload() async {
+    if (widget.onDownload != null) {
+      widget.onDownload!();
+      return;
+    }
+    // Default implementation: trigger share as PDF
+    await _handleShare();
+  }
+
+  Future<void> _handleShare() async {
+    if (widget.onShare != null) {
+      widget.onShare!();
+      return;
+    }
+    if (_documentBytes == null) return;
+
+    final printService = DocxPrintService();
+    await printService.shareAsPdf(_documentBytes!);
   }
 }
 

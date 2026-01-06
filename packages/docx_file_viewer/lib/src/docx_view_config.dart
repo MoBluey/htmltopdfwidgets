@@ -59,6 +59,21 @@ class DocxViewConfig {
   /// The layout mode of the document (continuous or paged).
   final DocxPageMode pageMode;
 
+  /// Show toolbar with zoom, print, and download controls.
+  final bool showToolbar;
+
+  /// Enable print functionality in toolbar.
+  final bool enablePrint;
+
+  /// Enable download/save as PDF functionality.
+  final bool enableDownload;
+
+  /// Enable share functionality.
+  final bool enableShare;
+
+  /// Custom toolbar position.
+  final ToolbarPosition toolbarPosition;
+
   const DocxViewConfig({
     this.enableSearch = true,
     this.enableZoom = true,
@@ -75,6 +90,11 @@ class DocxViewConfig {
     this.currentSearchHighlightColor = const Color(0xFFFF9800),
     this.pageWidth,
     this.pageMode = DocxPageMode.paged,
+    this.showToolbar = false,
+    this.enablePrint = true,
+    this.enableDownload = true,
+    this.enableShare = true,
+    this.toolbarPosition = ToolbarPosition.top,
   });
 
   DocxViewConfig copyWith({
@@ -92,6 +112,12 @@ class DocxViewConfig {
     Color? searchHighlightColor,
     Color? currentSearchHighlightColor,
     double? pageWidth,
+    DocxPageMode? pageMode,
+    bool? showToolbar,
+    bool? enablePrint,
+    bool? enableDownload,
+    bool? enableShare,
+    ToolbarPosition? toolbarPosition,
   }) {
     return DocxViewConfig(
       enableSearch: enableSearch ?? this.enableSearch,
@@ -109,6 +135,24 @@ class DocxViewConfig {
       currentSearchHighlightColor:
           currentSearchHighlightColor ?? this.currentSearchHighlightColor,
       pageWidth: pageWidth ?? this.pageWidth,
+      pageMode: pageMode ?? this.pageMode,
+      showToolbar: showToolbar ?? this.showToolbar,
+      enablePrint: enablePrint ?? this.enablePrint,
+      enableDownload: enableDownload ?? this.enableDownload,
+      enableShare: enableShare ?? this.enableShare,
+      toolbarPosition: toolbarPosition ?? this.toolbarPosition,
     );
   }
+}
+
+/// Toolbar position options.
+enum ToolbarPosition {
+  /// Toolbar at the top of the document.
+  top,
+
+  /// Toolbar at the bottom of the document.
+  bottom,
+
+  /// Floating toolbar overlay.
+  floating,
 }

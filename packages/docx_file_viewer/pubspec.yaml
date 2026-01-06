@@ -10,19 +10,22 @@ topics:
   - document
   - office
 screenshots:
-  - description: "Example of view"
+  - description: 'Example of view'
     path: example.gif
 environment:
   sdk: ^3.0.0
-  flutter: ">=3.0.0"
+  flutter: '>=3.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
   docx_creator: ^1.0.9
   url_launcher: ^6.3.2
+  pdf: ^3.11.3
+  printing: ^5.14.2
 dependency_overrides:
   meta: 1.17.0
+  archive: ^4.0.7
 dev_dependencies:
   flutter_test:
     sdk: flutter
