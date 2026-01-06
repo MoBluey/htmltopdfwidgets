@@ -137,6 +137,7 @@ class _DocxViewState extends State<DocxView> {
   late DocxWidgetGenerator _generator;
   double _currentZoom = 1.0;
   Uint8List? _documentBytes;
+  bool _hasCalculatedFitToWidth = false;
 
   @override
   void initState() {
@@ -161,7 +162,11 @@ class _DocxViewState extends State<DocxView> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.file != widget.file ||
         oldWidget.bytes != widget.bytes ||
-        oldWidget.path != widget.path) {
+        oldWidget.path != widget.path ||
+        oldWidget.config.fitToWidth != widget.config.fitToWidth ||
+        oldWidget.config.pageWidth != widget.config.pageWidth) {
+      _hasCalculatedFitToWidth = false;
+      _currentZoom = 1.0;
       _loadDocument();
     }
   }
@@ -170,6 +175,8 @@ class _DocxViewState extends State<DocxView> {
     setState(() {
       _isLoading = true;
       _error = null;
+      _hasCalculatedFitToWidth = false;
+      _currentZoom = 1.0;
     });
 
     try {
@@ -366,19 +373,53 @@ class _DocxViewState extends State<DocxView> {
       );
     }
 
-    // Wrap with InteractiveViewer for zoom functionality
-    if (widget.config.enableZoom) {
-      content = InteractiveViewer(
-        minScale: widget.config.minScale,
-        maxScale: widget.config.maxScale,
-        onInteractionUpdate: (details) {
-          if (details.scale != _currentZoom) {
-            setState(() {
-              _currentZoom = details.scale;
+    // Calculate fit-to-width zoom if enabled
+    if (widget.config.fitToWidth && 
+        widget.config.enableZoom && 
+        !_hasCalculatedFitToWidth &&
+        widget.config.pageWidth != null) {
+      // Use LayoutBuilder to get viewport width and calculate zoom
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          // Calculate zoom to fit document width to viewport width minus padding
+          final padding = widget.config.padding;
+          final availableWidth = constraints.maxWidth - padding.left - padding.right;
+          final documentWidth = widget.config.pageWidth!;
+          
+          if (availableWidth > 0 && documentWidth > 0) {
+            final calculatedZoom = availableWidth / documentWidth;
+            // Clamp zoom to valid range
+            final clampedZoom = calculatedZoom.clamp(
+              widget.config.minScale,
+              widget.config.maxScale,
+            );
+            
+            // Set zoom once
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && !_hasCalculatedFitToWidth) {
+                setState(() {
+                  _currentZoom = clampedZoom;
+                  _hasCalculatedFitToWidth = true;
+                });
+                widget.onZoomChanged?.call(_currentZoom);
+              }
             });
-            widget.onZoomChanged?.call(_currentZoom);
           }
+          
+          return _buildContentWithZoom(content);
         },
+      );
+    }
+
+    return _buildContentWithZoom(content);
+  }
+
+  Widget _buildContentWithZoom(Widget content) {
+    // Apply zoom transformation if zoom is enabled
+    // Note: We don't use InteractiveViewer to avoid interference with mouse wheel scrolling
+    if (widget.config.enableZoom && _currentZoom != 1.0) {
+      content = Transform.scale(
+        scale: _currentZoom,
         child: content,
       );
     }

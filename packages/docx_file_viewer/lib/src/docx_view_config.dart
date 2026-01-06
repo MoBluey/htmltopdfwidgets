@@ -74,6 +74,10 @@ class DocxViewConfig {
   /// Custom toolbar position.
   final ToolbarPosition toolbarPosition;
 
+  /// Automatically fit document width to viewport width (minus padding) on initial load.
+  /// Only applies when [pageWidth] is set or in paged mode.
+  final bool fitToWidth;
+
   const DocxViewConfig({
     this.enableSearch = true,
     this.enableZoom = true,
@@ -95,6 +99,7 @@ class DocxViewConfig {
     this.enableDownload = true,
     this.enableShare = true,
     this.toolbarPosition = ToolbarPosition.top,
+    this.fitToWidth = false,
   });
 
   DocxViewConfig copyWith({
@@ -118,6 +123,7 @@ class DocxViewConfig {
     bool? enableDownload,
     bool? enableShare,
     ToolbarPosition? toolbarPosition,
+    bool? fitToWidth,
   }) {
     return DocxViewConfig(
       enableSearch: enableSearch ?? this.enableSearch,
@@ -141,6 +147,7 @@ class DocxViewConfig {
       enableDownload: enableDownload ?? this.enableDownload,
       enableShare: enableShare ?? this.enableShare,
       toolbarPosition: toolbarPosition ?? this.toolbarPosition,
+      fitToWidth: fitToWidth ?? this.fitToWidth,
     );
   }
 }
