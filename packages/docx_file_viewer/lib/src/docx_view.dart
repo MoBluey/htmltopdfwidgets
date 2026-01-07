@@ -375,14 +375,14 @@ class _DocxViewState extends State<DocxView> {
 
     // Wrap everything in LayoutBuilder to get viewport width for fit-to-width calculation
     return LayoutBuilder(
+      key: const ValueKey('docx_viewer_layout'),
       builder: (context, constraints) {
         double zoomToUse = _currentZoom;
         
         // Calculate fit-to-width zoom if enabled
         if (widget.config.fitToWidth && 
             widget.config.enableZoom && 
-            widget.config.pageWidth != null &&
-            !_hasCalculatedFitToWidth) {
+            widget.config.pageWidth != null) {
           // Calculate zoom to fit document width to viewport width minus padding
           final padding = widget.config.padding;
           final availableWidth = constraints.maxWidth - padding.left - padding.right;
@@ -396,49 +396,67 @@ class _DocxViewState extends State<DocxView> {
               widget.config.maxScale,
             );
             
-            // Use calculated zoom immediately for rendering
+            // Always use calculated zoom when fitToWidth is enabled (for immediate rendering)
             zoomToUse = clampedZoom;
             
-            // Update state asynchronously to avoid setState during build
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted && !_hasCalculatedFitToWidth) {
-                setState(() {
-                  _currentZoom = clampedZoom;
-                  _hasCalculatedFitToWidth = true;
-                });
-                widget.onZoomChanged?.call(_currentZoom);
-              }
-            });
+            // Update state asynchronously only if not already set (to avoid unnecessary rebuilds)
+            if (!_hasCalculatedFitToWidth || (_currentZoom - clampedZoom).abs() > 0.001) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted && !_hasCalculatedFitToWidth) {
+                  setState(() {
+                    _currentZoom = clampedZoom;
+                    _hasCalculatedFitToWidth = true;
+                  });
+                  widget.onZoomChanged?.call(_currentZoom);
+                }
+              });
+            }
           }
         }
         
-        // Build content with calculated zoom (use zoomToUse for immediate rendering)
-        return _buildContentWithZoomAndZoomValue(content, zoomToUse);
+        // Apply zoom transformation if zoom is enabled
+        Widget zoomedContent = content;
+        if (widget.config.enableZoom && zoomToUse != 1.0) {
+          zoomedContent = Transform.scale(
+            scale: zoomToUse,
+            child: content,
+          );
+        }
+        
+        // Build toolbar with correct zoom value and combine with content
+        if (widget.config.showToolbar) {
+          final toolbar = _buildToolbar(zoomToUse);
+          switch (widget.config.toolbarPosition) {
+            case ToolbarPosition.top:
+              return Column(
+                key: const ValueKey('docx_viewer_with_toolbar'),
+                children: [toolbar, Expanded(child: zoomedContent)],
+              );
+            case ToolbarPosition.bottom:
+              return Column(
+                key: const ValueKey('docx_viewer_with_toolbar'),
+                children: [Expanded(child: zoomedContent), toolbar],
+              );
+            case ToolbarPosition.floating:
+              return Stack(
+                key: const ValueKey('docx_viewer_with_toolbar'),
+                children: [
+                  zoomedContent,
+                  Positioned(top: 8, right: 8, child: toolbar),
+                ],
+              );
+          }
+        }
+        
+        return zoomedContent;
       },
     );
   }
 
-  Widget _buildContentWithZoomAndZoomValue(Widget content, double zoomValue) {
-    // Apply zoom transformation if zoom is enabled
-    // Note: We don't use InteractiveViewer to avoid interference with mouse wheel scrolling
-    if (widget.config.enableZoom && zoomValue != 1.0) {
-      content = Transform.scale(
-        scale: zoomValue,
-        child: content,
-      );
-    }
-
-    // Wrap with toolbar if enabled (always show toolbar, don't conditionally hide it)
-    if (widget.config.showToolbar) {
-      content = _buildWithToolbar(content, zoomValue);
-    }
-
-    return content;
-  }
-
-  Widget _buildWithToolbar(Widget content, [double? zoomValue]) {
+  Widget _buildToolbar([double? zoomValue]) {
     final currentZoom = zoomValue ?? _currentZoom;
-    final toolbar = DocxToolbar(
+    return DocxToolbar(
+      key: const ValueKey('docx_toolbar'),
       currentZoom: currentZoom,
       enableZoom: widget.config.enableZoom,
       enablePrint: widget.config.enablePrint,
@@ -451,20 +469,6 @@ class _DocxViewState extends State<DocxView> {
       onDownload: _handleDownload,
       onShare: _handleShare,
     );
-
-    switch (widget.config.toolbarPosition) {
-      case ToolbarPosition.top:
-        return Column(children: [toolbar, Expanded(child: content)]);
-      case ToolbarPosition.bottom:
-        return Column(children: [Expanded(child: content), toolbar]);
-      case ToolbarPosition.floating:
-        return Stack(
-          children: [
-            content,
-            Positioned(top: 8, right: 8, child: toolbar),
-          ],
-        );
-    }
   }
 
 
