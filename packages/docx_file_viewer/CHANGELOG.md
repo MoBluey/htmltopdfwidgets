@@ -1,3 +1,24 @@
+## 1.1.0
+
+### Added
+- **Print functionality**: Print DOCX documents as PDF using cross-platform printing
+- **Download/Export**: Download documents as PDF files
+- **Share functionality**: Share documents via platform share dialog
+- **Toolbar widget**: Built-in toolbar with zoom, print, download, and share controls
+- **Fit-to-width feature**: Automatically fit document width to viewport on initial load
+- **Zoom callbacks**: `onZoomChanged` callback for tracking zoom level changes
+- **Print service**: `DocxPrintService` for programmatic PDF generation and printing
+- **Toolbar configuration**: `showToolbar`, `enablePrint`, `enableDownload`, `enableShare`, `toolbarPosition` options
+
+### Changed
+- **Zoom behavior**: Disabled pinch-to-zoom to prevent interference with mouse wheel scrolling
+- Zoom now controlled via toolbar buttons or programmatically
+- Improved mouse wheel scrolling experience
+
+### Fixed
+- Fixed fit-to-width initial load issue (no more default width then jump)
+- Fixed toolbar persistence during initial load and zoom changes
+
 ## 1.0.0
 - Migrated architecture to latest standards.
 ## 0.0.8
