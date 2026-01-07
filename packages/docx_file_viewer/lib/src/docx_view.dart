@@ -320,6 +320,37 @@ class _DocxViewState extends State<DocxView> {
       return const Center(child: Text('Empty document'));
     }
 
+    // Pre-calculate fit-to-width zoom using MediaQuery to avoid initial 1.0 zoom render
+    if (widget.config.fitToWidth && 
+        widget.config.enableZoom && 
+        widget.config.pageWidth != null &&
+        !_hasCalculatedFitToWidth) {
+      final mediaQuery = MediaQuery.of(context);
+      if (mediaQuery.size.width > 0) {
+        final padding = widget.config.padding;
+        final availableWidth = mediaQuery.size.width - padding.left - padding.right;
+        final documentWidth = widget.config.pageWidth!;
+        
+        if (availableWidth > 0 && documentWidth > 0) {
+          final calculatedZoom = (availableWidth / documentWidth).clamp(
+            widget.config.minScale,
+            widget.config.maxScale,
+          );
+          
+          // Set zoom immediately before rendering to prevent initial 1.0 zoom
+          _currentZoom = calculatedZoom;
+          _hasCalculatedFitToWidth = true;
+          
+          // Call callback asynchronously
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              widget.onZoomChanged?.call(_currentZoom);
+            }
+          });
+        }
+      }
+    }
+
     // Use theme's background color, fallback to config, then to white
     final backgroundColor =
         widget.config.backgroundColor ?? theme.backgroundColor ?? Colors.white;
@@ -377,12 +408,14 @@ class _DocxViewState extends State<DocxView> {
     return LayoutBuilder(
       key: const ValueKey('docx_viewer_layout'),
       builder: (context, constraints) {
+        // Use pre-calculated zoom (calculated in build method above)
+        // Recalculate if constraints changed significantly (e.g., window resize)
         double zoomToUse = _currentZoom;
         
-        // Calculate fit-to-width zoom if enabled
         if (widget.config.fitToWidth && 
             widget.config.enableZoom && 
-            widget.config.pageWidth != null) {
+            widget.config.pageWidth != null &&
+            constraints.maxWidth > 0) {
           // Calculate zoom to fit document width to viewport width minus padding
           final padding = widget.config.padding;
           final availableWidth = constraints.maxWidth - padding.left - padding.right;
@@ -396,18 +429,17 @@ class _DocxViewState extends State<DocxView> {
               widget.config.maxScale,
             );
             
-            // Always use calculated zoom when fitToWidth is enabled (for immediate rendering)
+            // Use calculated zoom (already set in build method, but recalculate if constraints differ)
             zoomToUse = clampedZoom;
             
-            // Update state asynchronously only if not already set (to avoid unnecessary rebuilds)
-            if (!_hasCalculatedFitToWidth || (_currentZoom - clampedZoom).abs() > 0.001) {
+            // Only update state if zoom changed significantly (e.g., window resize)
+            if ((_currentZoom - clampedZoom).abs() > 0.001) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted && !_hasCalculatedFitToWidth) {
+                if (mounted) {
                   setState(() {
                     _currentZoom = clampedZoom;
-                    _hasCalculatedFitToWidth = true;
                   });
-                  widget.onZoomChanged?.call(_currentZoom);
+                  widget.onZoomChanged?.call(clampedZoom);
                 }
               });
             }
@@ -424,6 +456,7 @@ class _DocxViewState extends State<DocxView> {
         }
         
         // Build toolbar with correct zoom value and combine with content
+        // Toolbar is always built when showToolbar is true to ensure it persists
         if (widget.config.showToolbar) {
           final toolbar = _buildToolbar(zoomToUse);
           switch (widget.config.toolbarPosition) {
